@@ -36,6 +36,9 @@ import ghidra.util.exception.CancelledException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.TaskMonitor;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class FormatStringAnalyzer extends AbstractAnalyzer {
 
 	// Array of substrings of variadic function names that are searched for 
@@ -52,8 +55,13 @@ public class FormatStringAnalyzer extends AbstractAnalyzer {
 	private static final String OPTION_DESCRIPTION_CREATE_BOOKMARKS =
 		"Select this check box if you want this analyzer to create analysis bookmarks " +
 			"when items of interest are created/identified by the analyzer.";
+	private static final String OPTION_NAME_USER_VARIADIC_STRINGS = "User variadic strings";
+	private static final String OPTION_DESCRIPTION_USER_VARIADIC_STRINGS = 
+			"Enter the names of the variadic functions that will be considered for analysis";
 
 	private boolean createBookmarksEnabled = OPTION_DEFAULT_CREATE_BOOKMARKS_ENABLED;
+	private String userVariadicStrings = "";
+	private List<String> variadicStrings = new ArrayList<>();
 
 	// Any function name containing this substring is determined to be an input type function
 	private static final String INPUT_FUNCTION_SUBSTRING = "scanf";
@@ -66,6 +74,15 @@ public class FormatStringAnalyzer extends AbstractAnalyzer {
 		setPriority(AnalysisPriority.LOW_PRIORITY);
 		setDefaultEnablement(false);
 		setPrototype();
+		extractVariadicStrings(userVariadicStrings);
+	}
+
+	private void extractVariadicStrings(String Substrings) {
+		Pattern pattern = Pattern.compile("\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*");
+		Matcher matcher = pattern.matcher(Substrings);
+		while (matcher.find()) {
+			variadicStrings.add(matcher.group(1));
+		}
 	}
 
 	@Override
@@ -132,6 +149,11 @@ public class FormatStringAnalyzer extends AbstractAnalyzer {
 						namesToReturn.put(name, function.getReturnType());
 						break;
 					}
+				}
+				if (variadicStrings.contains(name)) { 
+					variadicFunctionNames.add(name);
+					namesToParameters.put(name, getParameters(function));
+					namesToReturn.put(name, function.getReturnType());
 				}
 			}
 			monitor.checkCancelled();
@@ -373,12 +395,18 @@ public class FormatStringAnalyzer extends AbstractAnalyzer {
 	@Override
 	public void registerOptions(Options options, Program program) {
 		options.registerOption(OPTION_NAME_CREATE_BOOKMARKS, createBookmarksEnabled, null,
-			OPTION_DESCRIPTION_CREATE_BOOKMARKS);
+				OPTION_DESCRIPTION_CREATE_BOOKMARKS);
+		options.registerOption(OPTION_NAME_USER_VARIADIC_STRINGS, userVariadicStrings, null,
+				OPTION_DESCRIPTION_USER_VARIADIC_STRINGS);
 	}
 
 	@Override
 	public void optionsChanged(Options options, Program program) {
 		createBookmarksEnabled =
-			options.getBoolean(OPTION_NAME_CREATE_BOOKMARKS, createBookmarksEnabled);
+				options.getBoolean(OPTION_NAME_CREATE_BOOKMARKS, createBookmarksEnabled);
+		userVariadicStrings =
+				options.getString(OPTION_NAME_USER_VARIADIC_STRINGS, userVariadicStrings);
+		variadicStrings.clear();
+		extractVariadicStrings(userVariadicStrings);
 	}
 }
